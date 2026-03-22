@@ -8,17 +8,17 @@
 
 ## Problem Statement
 
-Crohn's Disease (CD) and Ulcerative Colitis (UC) are the two main subtypes of Inflammatory Bowel Disease (IBD) — chronic, immune-mediated conditions characterized by persistent inflammation of the gastrointestinal tract. Despite sharing symptoms like diarrhea, abdominal pain, and fatigue, they differ critically in location and depth: UC is confined to the large intestine, while CD can affect any part of the digestive tract from mouth to anus.
+Crohn's Disease (CD) and Ulcerative Colitis (UC) are the two main subtypes of Inflammatory Bowel Disease (IBD). They are both chronic, immune-mediated conditions characterized by persistent inflammation of the gastrointestinal tract. Despite sharing symptoms like diarrhea, abdominal pain, and fatigue, they differ critically in location and depth: UC is confined to the large intestine, while CD can affect any part of the digestive tract from mouth to anus.
 
-Current diagnostic methods (colonoscopy, biopsy, endoscopy) are invasive, expensive, and fail to differentiate CD from UC in 10–20% of cases — leaving patients labeled "Indeterminate Colitis" until further symptoms emerge. Misdiagnosis carries serious consequences because treatments differ significantly between the two conditions, and chronic inflammation from either disease can eventually progress to colorectal cancer.
+Current diagnostic methods (colonoscopy, biopsy, endoscopy) are invasive, expensive, and fail to differentiate CD from UC in 10–20% of cases which leaves patients labeled as "Indeterminate Colitis" until further symptoms emerge. Misdiagnosis carries serious consequences because treatments differ significantly between the two conditions, and chronic inflammation from either disease can eventually progress to colorectal cancer.
 
-This project develops a machine learning model that classifies gut microbial profiles into **Healthy**, **Crohn's Disease**, and **Ulcerative Colitis** — exploring whether stool-based microbiome data can serve as a less invasive diagnostic alternative.
+This project develops a machine learning model that classifies gut microbial profiles into **Healthy**, **Crohn's Disease**, and **Ulcerative Colitis**, exploring whether stool-based microbiome data can serve as a less invasive diagnostic alternative.
 
 ---
 
 ## Why Stool-Based Microbiome Data?
 
-Traditional diagnostic modalities including colonoscopy and cross-sectional imaging carry concerns around bowel preparation inconvenience and radiation exposure. Existing serological and fecal markers indicate inflammation but lack IBD specificity. Stool sampling is non-invasive, low-risk, easily collected, and cost-effective — and because it can identify IBD at an inactive stage, it has potential for early diagnosis. Integration of microbiome-based biomarkers into health information systems also has potential to define representative baselines for healthy populations and establish disease-associated signatures at scale.
+Traditional diagnostic modalities including colonoscopy and cross-sectional imaging carry concerns around bowel preparation inconvenience and radiation exposure. Existing serological and fecal markers indicate inflammation but lack IBD specificity. Stool sampling is non-invasive, low-risk, easily collected, and cost-effective, and because it can identify IBD at an inactive stage, it has potential for early diagnosis. Integration of microbiome-based biomarkers into health information systems also has potential to define representative baselines for healthy populations and establish disease-associated signatures at scale.
 
 ---
 
@@ -29,7 +29,7 @@ Traditional diagnostic modalities including colonoscopy and cross-sectional imag
 | `sample_to_run_info.csv` | Patient metadata: `project_id`, `run_id`, `phenotype`, `country`, `experiment_type` |
 | `species_abundance.csv` | Long-format microbial abundance: `accession_id`, `ncbi_taxon_id`, `taxon_rank_level`, `relative_abundance` |
 
-> WARNING: Both files are too large for GitHub. Download from [Google Drive — https://drive.google.com/drive/folders/1EXH_sqCdQDstTGO3XrWg4KXlmFM1uJ71] and place in the project root before running.
+> WARNING: Both files are too large for GitHub. Download from [![Google Drive] — https://drive.google.com/drive/folders/1EXH_sqCdQDstTGO3XrWg4KXlmFM1uJ71] and place in the project root before running.
 
 **After filtering to IBD-relevant projects:**
 ```
