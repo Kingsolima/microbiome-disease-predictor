@@ -29,7 +29,7 @@ Traditional diagnostic modalities including colonoscopy and cross-sectional imag
 | `sample_to_run_info.csv` | Patient metadata: `project_id`, `run_id`, `phenotype`, `country`, `experiment_type` |
 | `species_abundance.csv` | Long-format microbial abundance: `accession_id`, `ncbi_taxon_id`, `taxon_rank_level`, `relative_abundance` |
 
-> WARNING: Both files are too large for GitHub. Download from [![Google Drive] — https://drive.google.com/drive/folders/1EXH_sqCdQDstTGO3XrWg4KXlmFM1uJ71] and place in the project root before running.
+> WARNING: Both files are too large for GitHub. Download from [![Google Drive] (https://drive.google.com/drive/folders/1EXH_sqCdQDstTGO3XrWg4KXlmFM1uJ71)] and place in the project root before running.
 
 **After filtering to IBD-relevant projects:**
 ```
