@@ -88,7 +88,11 @@ const FEATURES_A = [
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
   0.0, 0.0, 0.0, 0.0,
+
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0,
 ];
 
 // Sample B: UC · P(UC)=0.9992 · confidence 99.9%
@@ -172,6 +176,12 @@ const FEATURES_B = [
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
   0.0, 0.0, 0.0, 0.0,
+
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0,
 ];
 
 // Sample C: CD · P(UC)=0.4952 · borderline (triggers low-confidence warning)
@@ -254,6 +264,13 @@ const FEATURES_C = [
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
   0.0, 0.0, 0.0, 0.0,
+
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0,
 ];
 
 // Per-sample taxa preview (5 shared non-zero taxa, normalised to 100)
@@ -398,8 +415,10 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
-  const activeFeatures = activeSample ? FEATURES[activeSample] : csvFeatures;
-  const loaded         = activeFeatures !== null;
+  const activeFeatures  = activeSample ? FEATURES[activeSample] : csvFeatures;
+  const loaded          = activeFeatures !== null;
+  const csvNonZeroCount = csvFeatures ? csvFeatures.filter((v) => v !== 0).length : 0;
+  const csvAllZeros     = csvFeatures !== null && csvNonZeroCount === 0;
 
   async function runPrediction() {
     setLoading(true);
@@ -561,10 +580,24 @@ export default function App() {
                 >
                   Download template CSV
                 </button>
+                <span className="csv-template-hint">
+                  Download, fill in your taxa abundance values in Excel, then upload.
+                </span>
               </div>
 
               {csvError && (
                 <div className="error-banner">{csvError}</div>
+              )}
+
+              {csvAllZeros && (
+                <div className="low-conf-warning">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  All feature values are zero. Please fill in your taxa abundances before running prediction.
+                </div>
               )}
 
               {/* Sample info card */}
@@ -574,7 +607,12 @@ export default function App() {
                     Sample ID: {sampleId}
                   </div>
                   <div className="sample-features">
-                    Features loaded: {loaded ? "662 taxa" : "— taxa"}
+                    Features loaded:{" "}
+                    {csvFeatures
+                      ? `${csvNonZeroCount} non-zero taxa`
+                      : loaded
+                      ? "662 taxa"
+                      : "— taxa"}
                   </div>
                 </div>
                 <div className="progress-bar-track">
@@ -605,7 +643,7 @@ export default function App() {
               {/* Run button */}
               <button
                 className="btn-run"
-                disabled={!loaded || loading}
+                disabled={!loaded || loading || csvAllZeros}
                 onClick={runPrediction}
               >
                 {loading ? "Analyzing…" : "Run Prediction"}
@@ -739,7 +777,7 @@ export default function App() {
             target="_blank"
             rel="noreferrer"
           >
-            github.com/omarsoliman/microbiome-disease-predictor
+            github.com/Kingsolima/microbiome-disease-predictor
           </a>
         </footer>
       </div>
