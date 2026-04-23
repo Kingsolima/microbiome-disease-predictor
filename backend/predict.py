@@ -5,7 +5,7 @@ import joblib
 import numpy as np
 import xgboost as xgb
 
-_ROOT = Path(__file__).parent.parent
+_ROOT = Path(__file__).parent
 
 _booster: xgb.Booster = joblib.load(_ROOT / "bst_ibd.pkl")
 
