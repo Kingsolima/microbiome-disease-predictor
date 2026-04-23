@@ -9,3 +9,5 @@ __pycache__/
 node_modules/
 dist/
 build/
+node_modules/
+venv/
