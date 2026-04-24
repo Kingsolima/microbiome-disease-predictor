@@ -1,5 +1,5 @@
 # Classification of Crohn's Disease and Ulcerative Colitis
-### A Gut Microbial Analysis using Machine Learning
+### A Gut Microbial Analysis using Machine Learning + Demo
 
 **Demo: https://microbiome-disease-predictor.vercel.app/**
 
