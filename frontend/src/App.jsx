@@ -420,21 +420,62 @@ export default function App() {
   const csvNonZeroCount = csvFeatures ? csvFeatures.filter((v) => v !== 0).length : 0;
   const csvAllZeros     = csvFeatures !== null && csvNonZeroCount === 0;
 
+  function buildFeaturesVector(raw, allFeatureNames, expectedLen = 662) {
+    // 1) Already a full numeric vector
+    if (Array.isArray(raw) && raw.length === expectedLen && raw.every((v) => typeof v === "number")) {
+      return raw;
+    }
+
+    // 2) Single CSV-ish string like "0,0,1,0,..."
+    if (
+      Array.isArray(raw) &&
+      raw.length === 1 &&
+      typeof raw[0] === "string" &&
+      raw[0].includes(",")
+    ) {
+      const parts = raw[0].split(",").map((s) => Number(s.trim()));
+      return parts;
+    }
+
+    // 3) Array of feature names -> binary vector
+    if (Array.isArray(raw) && raw.every((v) => typeof v === "string") && Array.isArray(allFeatureNames)) {
+      const selected = new Set(raw);
+      return allFeatureNames.map((f) => (selected.has(f) ? 1 : 0));
+    }
+
+    // 4) Object map { featureName: value }
+    if (raw && typeof raw === "object" && !Array.isArray(raw) && Array.isArray(allFeatureNames)) {
+      return allFeatureNames.map((f) => Number(raw[f] ?? 0));
+    }
+
+    return Array.isArray(raw) ? raw.map((v) => Number(v)) : [];
+  }
+
   async function runPrediction() {
     setLoading(true);
     setResult(null);
     setError(null);
     try {
+      const expectedLen = taxaNames?.length ?? 662;
+      const featuresVector = buildFeaturesVector(activeFeatures, taxaNames, expectedLen)
+        .map((v) => (Number.isFinite(v) ? v : 0));
+
+      console.log("API URL:", `${API_BASE}/predict`);
+      console.log("Vector length:", featuresVector.length);
+      console.log("Sample:", featuresVector.slice(0, 20));
+
+      if (featuresVector.length !== expectedLen) {
+        throw new Error(`Feature vector must be length ${expectedLen}, got ${featuresVector.length}.`);
+      }
+
       const res = await fetch(`${API_BASE}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ features: activeFeatures }),
+        body: JSON.stringify({ features: featuresVector }),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`${res.status} — ${text}`);
-      }
-      setResult(await res.json());
+      const text = await res.text();
+      if (!res.ok) throw new Error(`API error ${res.status}: ${text}`);
+      setResult(JSON.parse(text));
     } catch (err) {
       setError(
         err instanceof TypeError && err.message.toLowerCase().includes("fetch")
