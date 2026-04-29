@@ -17,7 +17,10 @@ def _parse_origins(value: str | None) -> list[str]:
 # Comma-separated list, e.g.
 # FRONTEND_ORIGINS="http://localhost:5173,https://your-frontend.vercel.app"
 frontend_origins = _parse_origins(os.getenv("FRONTEND_ORIGINS"))
-frontend_origin_regex = os.getenv("FRONTEND_ORIGIN_REGEX") or None
+frontend_origin_regex = (
+    os.getenv("FRONTEND_ORIGIN_REGEX")
+    or r"https://.*\.vercel\.app"
+)
 
 allow_origins = (
     frontend_origins

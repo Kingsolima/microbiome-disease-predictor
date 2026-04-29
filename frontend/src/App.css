@@ -76,6 +76,19 @@
   white-space: nowrap;
 }
 
+.api-badge.checking {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.api-badge.offline,
+.api-badge.unconfigured {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
 .api-badge-dot {
   width: 7px;
   height: 7px;
@@ -83,6 +96,10 @@
   background: #22c55e;
   flex-shrink: 0;
 }
+
+.api-badge.checking .api-badge-dot { background: #3b82f6; }
+.api-badge.offline .api-badge-dot,
+.api-badge.unconfigured .api-badge-dot { background: #ef4444; }
 
 .header-right {
   display: flex;

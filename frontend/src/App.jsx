@@ -300,7 +300,22 @@ const PREVIEWS = {
 
 const FEATURES = { A: FEATURES_A, B: FEATURES_B, C: FEATURES_C };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+function normalizeApiBase(value) {
+  const trimmed = value?.trim();
+  if (!trimmed) return import.meta.env.DEV ? "http://localhost:8000" : "";
+  return trimmed.replace(/\/+$/, "");
+}
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_URL);
+
+function apiUrl(path) {
+  if (!API_BASE) {
+    throw new Error(
+      "Missing VITE_API_URL. Add your Railway backend URL in Vercel, then redeploy the frontend."
+    );
+  }
+  return `${API_BASE}${path}`;
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 function ShapTooltip({ active, payload }) {
@@ -328,6 +343,7 @@ export default function App() {
   const [loading,      setLoading]      = useState(false);
   const [result,       setResult]       = useState(null);
   const [error,        setError]        = useState(null);
+  const [apiStatus,    setApiStatus]    = useState(API_BASE ? "checking" : "unconfigured");
 
   // CSV upload state
   const [taxaNames,   setTaxaNames]   = useState(null); // string[] loaded from /selected_taxa.json
@@ -340,6 +356,32 @@ export default function App() {
       .then((r) => r.json())
       .then(setTaxaNames)
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!API_BASE) {
+      setApiStatus("unconfigured");
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
+
+    fetch(apiUrl("/health"), { signal: controller.signal })
+      .then((r) => {
+        setApiStatus(r.ok ? "online" : "offline");
+      })
+      .catch(() => {
+        setApiStatus("offline");
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+      });
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, []);
 
   function selectSample(key) {
@@ -460,7 +502,9 @@ export default function App() {
       const featuresVector = buildFeaturesVector(activeFeatures, taxaNames, expectedLen)
         .map((v) => (Number.isFinite(v) ? v : 0));
 
-      console.log("API URL:", `${API_BASE}/predict`);
+      const predictUrl = apiUrl("/predict");
+
+      console.log("API URL:", predictUrl);
       console.log("Vector length:", featuresVector.length);
       console.log("Sample:", featuresVector.slice(0, 20));
 
@@ -468,7 +512,7 @@ export default function App() {
         throw new Error(`Feature vector must be length ${expectedLen}, got ${featuresVector.length}.`);
       }
 
-      const res = await fetch(`${API_BASE}/predict`, {
+      const res = await fetch(predictUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ features: featuresVector }),
@@ -479,7 +523,7 @@ export default function App() {
     } catch (err) {
       setError(
         err instanceof TypeError && err.message.toLowerCase().includes("fetch")
-          ? "Could not reach the prediction API. Make sure the backend is running."
+          ? `Could not reach the prediction API at ${API_BASE}. Check the Railway URL and CORS settings.`
           : err.message
       );
     } finally {
@@ -514,6 +558,12 @@ export default function App() {
   const shapData = result?.top_features
     ? [...result.top_features].sort((a, b) => a.shap_value - b.shap_value)
     : [];
+  const apiBadgeLabel = {
+    checking: "API Checking",
+    online: "API Online",
+    offline: "API Offline",
+    unconfigured: "API Not Set",
+  }[apiStatus];
 
   return (
     <div className="app">
@@ -544,9 +594,9 @@ export default function App() {
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
-            <div className="api-badge">
+            <div className={`api-badge ${apiStatus}`}>
               <span className="api-badge-dot" />
-              API Online
+              {apiBadgeLabel}
             </div>
           </div>
         </header>
