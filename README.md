@@ -3,7 +3,7 @@
 
 **Demo: https://microbiome-disease-predictor.vercel.app/**
 
-**Authors:** Diya Patel · Maharshil Patel · Dhivya Umasuthan · Omar Soliman
+**Author:** Omar Soliman
 **Institution:** Western University
 
 ---
@@ -11,25 +11,24 @@
 > ### Status: results revised downward after an evaluation audit
 >
 > An earlier version of this README reported ROC-AUC of 0.899 (3-class) and 0.913
-> (binary). **Those numbers were inflated by evaluation errors and have been
-> withdrawn.** They came from a random train/test split that let samples from the
-> same study project appear on both sides, plus feature selection and model tuning
-> that were allowed to see the test set.
+> (binary). Those numbers were inflated by evaluation errors and have been withdrawn.
+> They came from a random train/test split that let samples from the same study
+> project appear on both sides, plus feature selection and model tuning that were
+> allowed to see the test set.
 >
-> After rebuilding the evaluation to remove those errors, honest performance is
-> **far weaker**: roughly baseline-level accuracy on the 3-class problem, with
-> Ulcerative Colitis effectively undetected. The corrected figures and the reasons
-> behind them are documented below. This section is kept deliberately — the
-> difference between the two sets of numbers is the most instructive result in the
-> project.
+> After rebuilding the evaluation to remove those errors, honest performance is far
+> weaker: the 3-class model does not clear its own majority-class baseline, and the
+> binary model beats its baseline by under two points. The corrected figures and the
+> reasons behind them are documented below. This section is kept deliberately, since
+> the gap between the two sets of numbers is the most instructive result here.
 
 ---
 
 ## Problem Statement
 
-Crohn's Disease (CD) and Ulcerative Colitis (UC) are the two main subtypes of Inflammatory Bowel Disease (IBD). They are both chronic, immune-mediated conditions characterized by persistent inflammation of the gastrointestinal tract. Despite sharing symptoms like diarrhea, abdominal pain, and fatigue, they differ critically in location and depth: UC is confined to the large intestine, while CD can affect any part of the digestive tract from mouth to anus.
+Crohn's Disease (CD) and Ulcerative Colitis (UC) are the two main subtypes of Inflammatory Bowel Disease (IBD). Both are chronic, immune-mediated conditions characterised by persistent inflammation of the gastrointestinal tract. Despite sharing symptoms like diarrhea, abdominal pain, and fatigue, they differ critically in location and depth: UC is confined to the large intestine, while CD can affect any part of the digestive tract from mouth to anus.
 
-Current diagnostic methods (colonoscopy, biopsy, endoscopy) are invasive, expensive, and fail to differentiate CD from UC in 10–20% of cases which leaves patients labeled as "Indeterminate Colitis" until further symptoms emerge. Misdiagnosis carries serious consequences because treatments differ significantly between the two conditions, and chronic inflammation from either disease can eventually progress to colorectal cancer.
+Current diagnostic methods (colonoscopy, biopsy, endoscopy) are invasive, expensive, and fail to differentiate CD from UC in 10 to 20% of cases, which leaves patients labelled as "Indeterminate Colitis" until further symptoms emerge. Misdiagnosis carries serious consequences because treatments differ significantly between the two conditions, and chronic inflammation from either disease can eventually progress to colorectal cancer.
 
 This project develops a machine learning model that classifies gut microbial profiles into **Healthy**, **Crohn's Disease**, and **Ulcerative Colitis**, exploring whether stool-based microbiome data can serve as a less invasive diagnostic alternative.
 
@@ -58,11 +57,11 @@ Healthy:              2,099 samples  (28%)
 Colitis, Ulcerative:  1,863 samples  (25%)
 ```
 
-**After the inner merge with species abundance — this is the data actually modelled:**
+**After the inner merge with species abundance, which is the data actually modelled:**
 
 ```
-Samples:   2,838        (down from 7,478 — 4,640 had no abundance profile)
-Taxa:      2,893  species-level columns
+Samples:   2,838        (down from 7,478; 4,640 had no abundance profile)
+Taxa:      2,893        species-level columns
 Projects:  12           (down from 46)
 
 Crohn Disease:        1,314 samples  (46%)
@@ -70,134 +69,121 @@ Colitis, Ulcerative:    791 samples  (28%)
 Healthy:                733 samples  (26%)
 ```
 
-**The drop from 46 projects to 12 is the single most consequential fact in this
-project.** Every limitation below follows from it. The merge also removed nearly all
-amplicon samples — the modelled set is 2,838/2,838 (100%) shotgun metagenomics, which
-is why species-level abundances are used throughout.
+The drop from 46 projects to 12 is the single most consequential fact in this project, and every limitation below follows from it. The merge also removed nearly all amplicon samples, leaving 2,838 of 2,838 (100%) shotgun metagenomics, which is why species-level abundances are used throughout.
+
+**How the IBD samples are distributed across cohorts** (2,105 samples, UC present in 7 of 12 projects):
+
+| project_id | Crohn | UC |
+|---|---|---|
+| PRJEB21933 | 32 | 0 |
+| PRJEB42151 | 0 | 39 |
+| PRJEB76677 | 14 | 10 |
+| PRJNA1024678 | 9 | 0 |
+| PRJNA296946 | 5 | 0 |
+| **PRJNA398089** | **593** | **368** |
+| PRJNA429990 | 41 | 25 |
+| PRJNA793776 | 41 | 0 |
+| PRJNA813736 | 19 | 20 |
+| PRJNA851554 | 98 | 0 |
+| PRJNA983946 | 0 | 27 |
+| **PRJNA993675** | **462** | **302** |
+
+Two projects hold roughly 80% of the IBD samples. Grouped cross-validation is therefore testing against a small number of genuinely independent sources, whatever the sample count suggests.
 
 ---
 
 ## Evaluation Protocol
 
-Study cohort is the unit that must not leak. Samples from one project share sequencing
-platform, protocol, and population, so a model can score well by recognising the
-*batch* rather than the *disease*. The evaluation is built to make that impossible:
+Study cohort is the unit that must not leak. Samples from one project share sequencing platform, protocol, and population, so a model can score well by recognising the batch rather than the disease. The evaluation is built to make that impossible:
 
 | Control | Implementation |
 |---|---|
-| Cohort leakage | `StratifiedGroupKFold` grouped on `project_id` — a project is never split across train and test |
-| Feature-selection leakage | LASSO refit **inside each fold** on that fold's training rows only |
-| Early-stopping leakage | XGBoost early-stops on a **grouped validation set** carved from training, never on test |
-| Threshold-tuning leakage | Decision threshold chosen on **validation**, then applied to test unchanged |
-| Reporting | Pooled **out-of-fold (OOF)** predictions — every sample predicted exactly once, by a model that never saw it |
+| Cohort leakage | `StratifiedGroupKFold` grouped on `project_id`, so a project is never split across train and test |
+| Feature-selection leakage | LASSO refit inside each fold on that fold's training rows only |
+| Early-stopping leakage | XGBoost early-stops on a grouped validation set carved from training, never on test |
+| Threshold-tuning leakage | Decision threshold chosen on validation, then applied to test unchanged |
+| Degenerate folds | A geometry search rejects fold counts that strand a class outside a train or test fold, and reports when no clean option exists |
+| Reporting | Pooled out-of-fold predictions, so every sample is predicted exactly once by a model that never saw it |
 
-Every number below is out-of-fold. No number is from a model that saw the sample it
-is being scored on.
+Every number below is out-of-fold. No number comes from a model that saw the sample it is being scored on.
 
 ---
 
 ## Results
 
-All figures are out-of-fold. **Baseline** = always predict the majority class, which
-is the number any model must beat to be worth anything.
+**Baseline** means always predicting the majority class. It is the number any model has to beat to be worth anything.
 
 ### 3-Class Model (Healthy vs Crohn vs UC)
 
-| Model | Accuracy | Macro F1 | Macro ROC-AUC | Healthy F1 | Crohn F1 | UC F1 |
-|---|---|---|---|---|---|---|
-| Majority baseline | 0.463 | — | 0.500 | — | — | — |
-| Random Forest | 0.49 | 0.46 | — | 0.49 | 0.59 | 0.29 |
-| XGBoost | 0.51 | 0.41 | 0.632 | 0.49 | 0.63 | 0.11 |
+| Model | Accuracy | Baseline | Macro F1 | Macro ROC-AUC |
+|---|---|---|---|---|
+| Majority baseline | 0.463 | | | 0.500 |
+| Random Forest | 0.47 | 0.463 | 0.44 | n/a |
+| XGBoost | 0.44 | 0.463 | 0.44 | 0.646 |
 
-**Per-class recall — the number that matters:**
+Per-class recall:
 
 | Class | Support | RF recall | XGBoost recall |
 |---|---|---|---|
-| Healthy | 733 | 0.59 | 0.54 |
-| Crohn | 1,314 | 0.58 | 0.76 |
-| **Ulcerative Colitis** | **791** | **0.24** | **0.06** |
+| Healthy | 733 | 0.29 | 0.36 |
+| Crohn | 1,314 | 0.56 | 0.39 |
+| Ulcerative Colitis | 791 | 0.48 | 0.60 |
 
-XGBoost beats the majority baseline by **4.7 percentage points** (0.51 vs 0.463).
-Random Forest beats it by 2.7. A macro ROC-AUC of 0.632 (0.5 = chance) confirms there
-is *some* signal, but it is weak.
-
-**UC recall of 0.06 means the 3-class XGBoost model essentially never predicts
-Ulcerative Colitis.** Of 791 UC patients it identifies 47. It has learned that
-predicting "Crohn" for anything inflammatory is the cheapest way to minimise loss.
-This is not a bug to be tuned away — see *Why This Does Not Work* below.
+Random Forest clears the baseline by 0.7 points. XGBoost falls 2.3 points below it. A macro ROC-AUC of 0.646 against a chance value of 0.5 says there is some ranking signal, but not enough to produce useful hard predictions.
 
 ### Binary Model (Crohn vs UC only)
 
-| Model | Accuracy | Crohn F1 | UC F1 | Macro F1 | ROC-AUC |
-|---|---|---|---|---|---|
-| Majority baseline | 0.624 | — | — | — | 0.500 |
-| Random Forest | 0.62 | 0.69 | 0.50 | 0.60 | — |
-| XGBoost (threshold 0.5) | 0.64 | 0.73 | 0.47 | 0.60 | 0.643 |
-| XGBoost (validation-tuned threshold) | 0.44 | 0.24 | 0.55 | 0.40 | 0.643 |
+| Model | Accuracy | Baseline | Crohn F1 | UC F1 | Macro F1 | ROC-AUC |
+|---|---|---|---|---|---|---|
+| Majority baseline | 0.624 | | | | | 0.500 |
+| Random Forest | 0.61 | 0.624 | 0.69 | 0.49 | 0.59 | n/a |
+| XGBoost (threshold 0.5) | 0.64 | 0.624 | 0.74 | 0.46 | 0.60 | 0.637 |
+| XGBoost (validation-tuned threshold) | 0.42 | 0.624 | 0.14 | 0.56 | 0.35 | 0.637 |
 
-Per-fold ROC-AUC: **0.668 ± 0.011**.
+Per-fold ROC-AUC: 0.632 +/- 0.001 across 2 folds.
 
-This is the stronger of the two models and the one worth reporting, but the honesty
-is in the comparison to baseline: **accuracy of 0.64 against a 0.624 baseline is a
-1.6-point improvement.** The AUC of 0.64–0.67 is the more meaningful figure — it says
-the model ranks UC above Crohn better than chance, even though its hard predictions
-are barely better than guessing the majority class.
+This is the stronger of the two models and the one worth reporting, but the honesty is in the baseline comparison: accuracy of 0.64 against 0.624 is a 1.6 point improvement. The AUC of 0.637 is the more meaningful figure, since it says the model ranks UC above Crohn better than chance even though its hard predictions are close to guessing the majority class.
 
-**On threshold tuning:** lowering the cutoff raises UC F1 from 0.47 to 0.55 and UC
-recall to 0.93 — but Crohn recall collapses from 0.77 to **0.14** and overall accuracy
-falls to 0.44. This is a *trade*, not an improvement. It is reported here because the
-operating point is a legitimate clinical choice, not because it made the model better.
+### Feature transforms
+
+| Transform | RF accuracy | XGBoost accuracy | Macro ROC-AUC |
+|---|---|---|---|
+| Raw abundances | 0.495 +/- 0.041 | 0.453 +/- 0.048 | 0.705 +/- 0.071 |
+| log1p | 0.501 +/- 0.034 | 0.450 +/- 0.031 | 0.713 +/- 0.066 |
+| CLR (centered log-ratio) | 0.472 +/- 0.045 | 0.440 +/- 0.016 | 0.684 +/- 0.027 |
+
+All three land within one per-fold standard deviation of each other, so none of them helps. This is worth stating plainly because an earlier version of the comparison was a no-op that could not have shown a difference: tree ensembles split on thresholds and are therefore invariant to any monotonic per-feature transform such as log1p, and the one step that is sensitive to it, LASSO selection, was being fed raw values regardless of the setting. Both paths are now wired correctly, and CLR was added specifically because it mixes information across taxa and so is not a per-feature monotonic map. The comparison now genuinely runs, and the answer is still negative.
+
+### Class weighting
+
+| Setting | XGBoost accuracy | Macro ROC-AUC | XGBoost UC recall |
+|---|---|---|---|
+| Unweighted | 0.453 +/- 0.048 | 0.705 +/- 0.071 | 0.604 |
+| Balanced | 0.512 +/- 0.112 | 0.715 +/- 0.090 | 0.651 |
+
+Class weighting gives XGBoost a modest lift. The Random Forest per-class recalls are byte-identical weighted and unweighted, which indicates the installed cuML build silently ignores `class_weight`; the notebook checks for the parameter and reports whether it is exposed.
 
 ---
 
-## Why This Does Not Work
+## Why This Does Not Work Well
 
-The honest diagnosis, in order of severity.
+**Twelve cohorts is the binding constraint, and it counts projects rather than samples.** Two projects hold roughly 80% of the IBD data. Between-cohort technical variation is large relative to the disease signal, and grouped cross-validation correctly refuses to reward a model for memorising it. The withdrawn 0.91 AUC was largely the model doing exactly that.
 
-**1. Twelve cohorts is not enough.** The binding constraint is the number of
-independent projects, not the number of samples. With 12 projects, between-cohort
-technical variation is large relative to the disease signal, and grouped
-cross-validation correctly refuses to reward a model for memorising batch effects.
-The earlier 0.91 AUC was largely the model doing exactly that.
+**The results are unstable under fold reassignment.** UC recall in the 3-class model moved from 0.06 to 0.60 between two runs that differed only in fold geometry, with no change to the model. With this few cohorts, which projects land in which fold moves the result more than any modelling decision does. That instability is itself a finding, and it means any single point estimate here should be treated with suspicion.
 
-**2. UC and Crohn genuinely overlap at the species level.** These are two inflammatory
-conditions affecting the same organ system with substantially shared microbial
-dysbiosis. The 10–20% clinical misdiagnosis rate cited in the problem statement is
-evidence that the distinction is hard *with a colonoscopy*. Expecting stool
-composition alone to cleanly separate them was optimistic.
-
-**3. UC is the minority class in a three-way contest it cannot win.** With 791 UC
-against 1,314 Crohn and 733 Healthy, and with UC's signal overlapping Crohn's, the
-loss-minimising strategy is to rarely predict UC. Class weighting redistributes the
-decision boundary; it cannot manufacture signal that is not in the data.
-
-**4. The fold geometry was itself broken.** At `n_splits=5`, splitting 12 projects
-produced degenerate folds:
+**The multiclass fold geometry never became clean.** The geometry search reports one surviving problem: fold 2 trains on 1,032 of 2,838 samples (36%) and predicts 1,806 of them.
 
 ```
-fold 0: 2708 train /  130 test | 1 project  | {H:89, C:41}          ← no UC at all
-fold 1: 2833 train /    5 test | 1 project  | {C:5}                 ← 5 samples, one class
-fold 2: 2720 train /  118 test | 3 projects | {H:38, C:41, UC:39}
-fold 3: 2653 train /  185 test | 2 projects | {H:48, C:117, UC:20}
-fold 4:  438 train / 2400 test | 5 projects | {H:558, C:1110, UC:732}
+fold 0: 2712 train /  126 test | 2 projects | {Healthy: 48,  Crohn: 19,  UC: 59}
+fold 1: 1932 train /  906 test | 1 project  | {Healthy: 142, Crohn: 462, UC: 302}
+fold 2: 1032 train / 1806 test | 9 projects | {Healthy: 543, Crohn: 833, UC: 430}
 ```
 
-Two folds contain no UC, so their AUC is undefined. Worse, **fold 4 trained on 438
-samples (15% of the data) and generated predictions for 2,400 samples — 85% of the
-entire out-of-fold pool.** This means the reported OOF figures above are dominated by
-one severely under-trained model and are likely *pessimistic*, while the per-fold
-`± 0.215` standard deviation is pure noise. The fix (`n_splits=3`, ~4 projects per
-fold) is implemented in the notebook and the figures above will be regenerated.
+Per-fold standard deviations for the 3-class model should therefore be read as noise, and only the pooled out-of-fold figures quoted. The binary problem does reach a clean geometry at 2 folds with 6 test projects each, so its numbers are sound.
 
-**5. `log1p` feature engineering was a no-op, for two compounding reasons.** Tree
-ensembles split on thresholds, so they are mathematically **invariant to any monotonic
-per-feature transform** — `log1p` cannot change a Random Forest or XGBoost, by
-construction. And the one step that *is* sensitive to it, LASSO selection, was being
-fed raw values regardless of the transform setting. The raw and `log1p` runs therefore
-produced byte-identical scores (`0.651 ± 0.215` both times). The wiring is fixed and a
-centered log-ratio (CLR) transform — which mixes information across taxa and is
-therefore *not* monotonic per-feature — has been added as a transform that can
-actually move the result.
+**Crohn and UC genuinely overlap at the species level.** These are two inflammatory conditions in the same organ system with substantially shared microbial dysbiosis. The 10 to 20% clinical misdiagnosis rate quoted above is evidence that the distinction is hard with a colonoscopy, so expecting stool composition alone to separate them cleanly was optimistic.
+
+**Threshold tuning is a trade, not an improvement.** Lowering the cutoff raises UC F1 from 0.457 to 0.557 and UC recall to 0.98, while Crohn recall collapses from 0.79 to 0.08 and accuracy falls to 0.42. ROC-AUC is unchanged, because moving a threshold slides along a fixed curve rather than improving it. Which operating point to prefer is a clinical judgement about which misdiagnosis costs more, not a modelling win.
 
 ---
 
@@ -205,31 +191,27 @@ actually move the result.
 
 ### Why XGBoost?
 
-**High-dimensional sparse data** — with ~2,900 taxon columns that are mostly zero, XGBoost handles sparse tabular data natively, unlike SVMs and neural networks which assume dense input and overfit in this setting.
+**High-dimensional sparse data.** With roughly 2,900 taxon columns that are mostly zero, XGBoost handles sparse tabular data natively, unlike SVMs and neural networks which assume dense input and overfit in this setting.
 
-**Mixed signal strength** — most taxa are uninformative noise; only a small fraction carry disease correlation. Gradient boosting builds trees sequentially, each focusing on the residual errors of the previous ones, naturally down-weighting weak features.
+**Mixed signal strength.** Most taxa are uninformative noise and only a small fraction carry disease correlation. Gradient boosting builds trees sequentially, each focusing on the residual errors of the previous ones, which naturally down-weights weak features.
 
-**Calibrated probabilities** — `binary:logistic` and `multi:softprob` produce probability outputs that make threshold tuning possible.
+**Calibrated probabilities.** The `binary:logistic` and `multi:softprob` objectives produce probability outputs, which is what makes threshold tuning possible.
 
 ### Why Not Other Models?
 
 | Model | Reason Not Used |
 |---|---|
 | **Logistic Regression** | Assumes a linear relationship between abundance and disease. Used as a feature selector only, via the L1 penalty. |
-| **Random Forest** | Comparable performance, retained as a benchmark. Notably it achieves *better UC recall* (0.24 vs 0.06) than XGBoost in the 3-class setting, at the cost of overall accuracy. |
-| **SVM** | Distance calculations unreliable on sparse high-dimensional data; no native calibrated probabilities, ruling out threshold tuning. |
-| **Neural Networks** | 2,838 samples is far too small. Tree-based methods consistently outperform neural networks on tabular data below ~100k rows. |
-| **LightGBM** | Architecturally similar to XGBoost; no expected gain. |
+| **Random Forest** | Comparable performance, retained as a benchmark. It is the better of the two on 3-class accuracy (0.47 vs 0.44) and the worse on binary (0.61 vs 0.64). |
+| **SVM** | Distance calculations are unreliable on sparse high-dimensional data, and there is no native calibrated probability output, which rules out threshold tuning. |
+| **Neural Networks** | 2,838 samples is far too small. Tree-based methods consistently outperform neural networks on tabular data below roughly 100k rows. |
+| **LightGBM** | Architecturally similar to XGBoost, with no expected gain. |
 
 ### Feature Selection: LASSO
 
-L1-penalized logistic regression (C=0.1, GPU-accelerated via cuML) on the 2,893-taxon
-matrix. Taxa with a non-zero coefficient for any class are retained. Refit on the full
-dataset for interpretation, this selects **746 taxa**; inside cross-validation it is
-refit per fold, so the selected set differs slightly between folds by design.
+L1-penalised logistic regression (C=0.1, GPU-accelerated via cuML) on the 2,893-taxon matrix. Taxa with a non-zero coefficient for any class are retained. Refit on the full dataset for interpretation this selects **746 taxa**; inside cross-validation it is refit per fold, so the selected set differs between folds by design.
 
-**Feature importances are reported for hypothesis generation only.** They come from a
-full-data refit with no hold-out and must not be read as evidence of performance.
+Feature importances are reported for hypothesis generation only. They come from a full-data refit with no hold-out and carry no performance claim.
 
 ---
 
@@ -237,19 +219,19 @@ full-data refit with no hold-out and must not be read as evidence of performance
 
 ```
 sample_to_run_info.csv
-        ↓
+        |
   1. Filter to IBD-relevant project IDs (46 projects)
   2. Keep: Healthy, Crohn Disease, Colitis Ulcerative
-        ↓
+        |
 species_abundance.csv
-        ↓
+        |
   3. Filter to species-level taxa, drop unclassified (ncbi_taxon_id = -1)
-  4. Pivot long → wide (one row per sample, one column per taxon)
-        ↓
-  5. Inner merge on run_id  →  2,838 samples, 12 projects, 100% metagenomics
-        ↓
-  6. StratifiedGroupKFold grouped on project_id
-        ↓
+  4. Pivot long to wide (one row per sample, one column per taxon)
+        |
+  5. Inner merge on run_id  ->  2,838 samples, 12 projects, 100% metagenomics
+        |
+  6. Search for a usable StratifiedGroupKFold geometry on project_id
+        |
      For each fold:
        6a. LASSO feature selection   (training rows only)
        6b. Grouped validation carve-out from training rows
@@ -257,8 +239,8 @@ species_abundance.csv
        6d. XGBoost                   (early stop on validation)
        6e. Threshold tuning          (on validation, binary model)
        6f. Predict held-out fold once
-        ↓
-  7. Pool out-of-fold predictions → single honest report
+        |
+  7. Pool out-of-fold predictions into a single honest report
 ```
 
 ---
@@ -269,14 +251,14 @@ species_abundance.csv
 ```
 python >= 3.10
 pandas, numpy, scikit-learn, xgboost, matplotlib, seaborn
-cuml, cudf, cupy   (NVIDIA GPU — tested on T4 via Google Colab)
+cuml, cudf, cupy   (NVIDIA GPU, tested on T4 via Google Colab)
 ```
 
 See `requirements.txt` (CPU) and `requirements-gpu.txt` (RAPIDS/cuML).
 
-### Run in Google Colab (Recommended)
-The notebook uses cuML for GPU-accelerated training. Open `Model Analysis.ipynb` in
-Colab with a T4 GPU runtime and run all cells in order.
+### Run in Google Colab (recommended)
+
+The notebook uses cuML for GPU-accelerated training. Open `Model_Analysis.ipynb` in Colab with a T4 GPU runtime and run all cells in order.
 
 ```bash
 # 1. Clone the repo
@@ -284,13 +266,12 @@ git clone https://github.com/diya-patel83/microbiome-disease-predictor.git
 cd microbiome-disease-predictor
 
 # 2. Download the two CSVs from Google Drive into the project root
-# 3. Open "Model Analysis.ipynb" in Colab (T4 GPU runtime)
+
+# 3. Open Model_Analysis.ipynb in Colab (T4 GPU runtime)
 # 4. Run all cells in order
 ```
 
-**Before trusting any output, check the fold-geometry printout in Section 3.** Every
-fold should show all three classes with non-trivial counts and comparable train sizes.
-If it does not, the scores below it are not interpretable.
+Read the fold-geometry printouts in Sections 3 and 8 before trusting anything below them. If the search reports that no clean geometry was found, the per-fold spreads for that model are not interpretable and only the pooled out-of-fold numbers should be quoted.
 
 ---
 
@@ -298,7 +279,7 @@ If it does not, the scores below it are not interpretable.
 
 ```
 microbiome-disease-predictor/
-├── Model Analysis.ipynb     # Main notebook (GPU: cuML + XGBoost)
+├── Model_Analysis.ipynb     # Main notebook (GPU: cuML + XGBoost)
 ├── backend/                 # Prediction API
 ├── frontend/                # Demo web app
 ├── bst_ibd.pkl              # Serialised binary Crohn-vs-UC model
@@ -312,83 +293,62 @@ microbiome-disease-predictor/
 
 ## Key Findings
 
-- **Grouped cross-validation cut apparent performance roughly in half.** 3-class
-  ROC-AUC fell from a reported 0.899 to 0.632; binary from 0.913 to 0.643. The gap is
-  a direct measure of how much the original result was batch memorisation.
-- **The binary Crohn-vs-UC model is the only result worth reporting**, at ROC-AUC
-  0.643 OOF (0.668 ± 0.011 per fold) — above chance, but only marginally above the
-  majority-class baseline on hard predictions.
-- **Three-class UC detection is at or near the limit of this dataset**, with recall of
-  0.06 (XGBoost) and 0.24 (Random Forest).
-- **The constraint is cohorts, not samples.** 12 projects is too few to separate
-  disease signal from batch effect, and adding more samples from the same 12 projects
-  would not help.
-- **Leakage is easy to introduce and expensive to detect.** Three separate leaks
-  (feature selection, early stopping, threshold tuning) each looked like ordinary
-  modelling code.
+- **Grouped cross-validation cut apparent performance roughly in half.** 3-class ROC-AUC fell from a reported 0.899 to 0.646, and binary from 0.913 to 0.637. That gap is a direct measure of how much the original result was batch memorisation.
+- **The binary Crohn vs UC model is the only result worth reporting**, at out-of-fold ROC-AUC 0.637 with a clean 2-fold geometry, though its accuracy sits only 1.6 points above the majority baseline.
+- **The 3-class model does not clear its own baseline.** XGBoost lands below it and Random Forest 0.7 points above it.
+- **Fold assignment moves the result more than modelling does.** A single reshuffle moved UC recall from 0.06 to 0.60.
+- **Feature transforms and class weighting both produced negative or marginal results**, and are reported as such rather than dropped.
+- **Leakage is easy to introduce and expensive to detect.** Three separate leaks (feature selection, early stopping, threshold tuning) each looked like ordinary modelling code.
 
 ---
 
-## Limitations & Future Work
+## Limitations
 
-### Being clear-eyed about the ceiling
+**Not a diagnostic tool.** At this level of performance this is a research exercise. Nothing here is suitable for clinical use, and the 3-class model in particular performs at or below the level of always guessing the most common class.
 
-**UC recall of 0.06 is probably close to what this data can support.** 791 UC samples
-spread across a handful of cohorts, with signal that overlaps Crohn, is not a tuning
-problem. No amount of hyperparameter search turns that into 0.7. The right response is
-to report it accurately, not to hide it behind a favourable split.
+**Too few independent cohorts.** Twelve projects, two of which dominate the IBD subset, is not enough to separate disease signal from batch effect. This bounds everything else.
 
-### Planned work, in priority order
+**Unstable estimates.** Because so few cohorts exist, results swing substantially with fold assignment. Any single number in this README should be read as one draw from a wide distribution rather than a settled value.
 
-**1. Fold geometry — mandatory, implemented, pending rerun.** Drop to `n_splits=3` so
-each test fold holds ~4 projects, every fold contains all three classes, and no fold
-trains on a sliver. All figures in this README will be regenerated afterwards; the
-per-fold standard deviations only become meaningful at that point.
+**The multiclass geometry is still degenerate.** No fold count produced a clean split for the 3-class problem, and one fold trains on 36% of the data. Its per-fold spreads are not interpretable.
 
-**2. Repair the feature-engineering comparison — implemented, pending rerun.** The
-transform now reaches LASSO selection, and CLR has been added alongside `log1p`. If
-neither beats raw features under the corrected folds, the comparison will be reported
-as a negative result rather than dropped.
+**Batch effects are controlled for in evaluation but not corrected in the data.** Grouped cross-validation prevents leakage; it does not remove the confound.
 
-**3. Class weighting for UC recall — implemented, pending rerun.** `class_weight="balanced"`
-on the Random Forest (where the installed cuML build supports it) and inverse-frequency
-sample weights for XGBoost, since `multi:softprob` does not accept `class_weight`
-directly. Expected to produce a modest lift at best, and to trade Healthy/Crohn recall
-for it.
+**Single sequencing technology.** Every modelled sample is shotgun metagenomics, so none of these models has been tested on amplicon data and none should be assumed to transfer to it.
 
-**4. Lead with the binary model.** Report Crohn-vs-UC as the headline IBD result and
-present the 3-class model with its UC limitation stated plainly rather than averaged
-away into a macro F1.
+**Species-level features only.** Genus-level abundances were discarded at the filtering step, so roughly half the available taxonomic signal is currently unused.
 
-**5. More independent cohorts — the genuine fix, currently unavailable.** The
-constraint is the number of projects. Additional cohorts from different populations
-and protocols would do more than any modelling change in this list. Until then, the
-honest ceiling stands.
+**Cross-sectional data.** There is no longitudinal component, so nothing here speaks to progression or to early detection over time.
 
-### Further limitations
+**Unmodelled confounders.** Diet, geography, antibiotic use, and disease activity at time of sampling are all known drivers of microbiome composition and are absent from the feature set.
 
-- **Batch effects are controlled for in evaluation but not corrected in the data.**
-  Grouped CV prevents leakage; it does not remove the confound. ComBat or a similar
-  correction should be applied before any clinical interpretation.
-- **Single sequencing technology.** The merge left only shotgun metagenomics, so the
-  models are untested on amplicon data and should not be assumed to transfer.
-- **Cross-sectional data.** Longitudinal microbiome tracking would likely improve
-  early detection, but is not available here.
-- **Unmodelled confounders** — diet, geography, antibiotic use, disease activity at
-  sampling — are known drivers of microbiome composition and are absent from the
-  feature set.
-- **Not a diagnostic tool.** At current performance this is a research exercise. It is
-  not suitable for any clinical use.
+**cuML `class_weight` may be silently ignored.** The Random Forest results were identical weighted and unweighted, so the class-weighting conclusion holds for XGBoost only.
+
+---
+
+## Future Work
+
+**1. Combine genus-level and species-level features.** The abundance table contains roughly as many genus rows (2,780,064) as species rows (2,761,207), and the genus half is currently discarded. Genus-level features are less sparse and less affected by cross-study differences in classifier reference databases, so they may carry cohort-transferable signal that species-level features lose to noise. The plan is to join both ranks into a single feature matrix and evaluate whether the added signal improves discrimination without costing accuracy on the classes that currently work.
+
+**2. Test genus-level features on their own.** Running the same pipeline on genus data alone separates the two possibilities: whether combining ranks helps because more information is available, or whether genus is simply the better resolution for this data. Given how much of the current difficulty comes from cross-cohort variation, the coarser rank may generalise better even with less detail. Both runs use the identical evaluation protocol so the comparison is fair.
+
+**3. More independent cohorts.** The genuine fix, and unavailable at present. More samples from the existing 12 projects would not address the constraint, since the limit is the number of independent sources rather than the number of rows.
+
+**4. Repeated cross-validation across several seeds.** Given how far one fold reshuffle moved UC recall, a single geometry is not enough to characterise performance. Reporting a distribution over seeds would be more honest than any point estimate.
+
+**5. Batch correction.** ComBat or an equivalent applied upstream of the model, to address the confound rather than merely refusing to be fooled by it.
+
+**6. Lead with the binary model.** Report Crohn vs UC as the headline result and present the 3-class model with its baseline attached, rather than averaging the UC failure into a macro F1.
 
 ---
 
 ## References
 
 - Mayo Clinic. Ulcerative Colitis vs. Crohn's Disease. https://www.mayoclinic.org
-- PMC9793422 — Differentiating CD from UC
-- PMC8643196 — Indeterminate Colitis outcomes
-- PMC11241288 — IBD diagnostic procedures
-- PubMed 39367251 — Stool sampling for IBD diagnosis
-- PMC11538166 — Microbiome biomarkers in healthcare
-- PMC11786253 — Microbiome ML challenges
-- ScienceDirect S0966842X23003396 — ML microbiome risk score for Crohn's prediction
+- PMC9793422, Differentiating CD from UC
+- PMC8643196, Indeterminate Colitis outcomes
+- PMC11241288, IBD diagnostic procedures
+- PubMed 39367251, Stool sampling for IBD diagnosis
+- PMC11538166, Microbiome biomarkers in healthcare
+- PMC11786253, Microbiome ML challenges
+- ScienceDirect S0966842X23003396, ML microbiome risk score for Crohn's prediction
