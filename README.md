@@ -8,6 +8,16 @@
 
 ---
 
+## Project Summary
+
+This project evaluates whether gut microbiome profiles can distinguish Crohn's disease from ulcerative colitis across independent research cohorts. The dataset contains 2,838 samples from 12 projects and 2,893 species-level microbial features.
+
+An initial random-split model reported inflated performance because samples from the same study appeared in both training and testing. I rebuilt the pipeline using project-grouped cross-validation, fold-specific feature selection, grouped early stopping, and out-of-fold evaluation. Under this stricter protocol, the binary model achieved a ROC-AUC of 0.637.
+
+The main finding is not that the model performs well, but that cross-cohort domain shift is substantially larger than random-split evaluation suggests. Current work compares species- and genus-level representations and explores whether transfer-learning methods can improve generalization across cohorts.
+
+---
+
 > ### Status: results revised downward after an evaluation audit
 >
 > An earlier version of this README reported ROC-AUC of 0.899 (3-class) and 0.913
@@ -142,7 +152,7 @@ Random Forest clears the baseline by 0.7 points. XGBoost falls 2.3 points below 
 
 Per-fold ROC-AUC: 0.632 +/- 0.001 across 2 folds.
 
-This is the stronger of the two models and the one worth reporting, but the honesty is in the baseline comparison: accuracy of 0.64 against 0.624 is a 1.6 point improvement. The AUC of 0.637 is the more meaningful figure, since it says the model ranks UC above Crohn better than chance even though its hard predictions are close to guessing the majority class.
+This is the stronger of the two models, and the most interpretable because it reached a valid two-fold cohort geometry, but the honesty is in the baseline comparison: accuracy of 0.64 against 0.624 is a 1.6 point improvement. The AUC of 0.637 is the more meaningful figure, since it says the model ranks UC above Crohn better than chance even though its hard predictions are close to guessing the majority class.
 
 ### Feature transforms
 
@@ -195,7 +205,7 @@ Per-fold standard deviations for the 3-class model should therefore be read as n
 
 **Mixed signal strength.** Most taxa are uninformative noise and only a small fraction carry disease correlation. Gradient boosting builds trees sequentially, each focusing on the residual errors of the previous ones, which naturally down-weights weak features.
 
-**Calibrated probabilities.** The `binary:logistic` and `multi:softprob` objectives produce probability outputs, which is what makes threshold tuning possible.
+**Probability outputs.** The logistic objectives produce continuous probability estimates that support ROC-AUC analysis and threshold selection. Formal probability calibration was not performed.
 
 ### Why Not Other Models?
 
@@ -203,8 +213,8 @@ Per-fold standard deviations for the 3-class model should therefore be read as n
 |---|---|
 | **Logistic Regression** | Assumes a linear relationship between abundance and disease. Used as a feature selector only, via the L1 penalty. |
 | **Random Forest** | Comparable performance, retained as a benchmark. It is the better of the two on 3-class accuracy (0.47 vs 0.44) and the worse on binary (0.61 vs 0.64). |
-| **SVM** | Distance calculations are unreliable on sparse high-dimensional data, and there is no native calibrated probability output, which rules out threshold tuning. |
-| **Neural Networks** | 2,838 samples is far too small. Tree-based methods consistently outperform neural networks on tabular data below roughly 100k rows. |
+| **SVM** | Not prioritised because the main goal was cohort-aware evaluation rather than exhaustive model comparison. Probability-based threshold analysis would also require an additional calibration step. |
+| **Neural Networks** | Not prioritised because only 12 independent cohorts were available, creating substantial overfitting risk despite the larger sample count. |
 | **LightGBM** | Architecturally similar to XGBoost, with no expected gain. |
 
 ### Feature Selection: LASSO
@@ -280,10 +290,12 @@ Read the fold-geometry printouts in Sections 3 and 8 before trusting anything be
 ```
 microbiome-disease-predictor/
 ├── Model_Analysis.ipynb     # Main notebook (GPU: cuML + XGBoost)
-├── backend/                 # Prediction API
+├── backend/                 # Prediction API (serves its own model + taxa copies)
 ├── frontend/                # Demo web app
-├── bst_ibd.pkl              # Serialised binary Crohn-vs-UC model
-├── selected_taxa.json       # Taxa retained by LASSO
+├── models/                  # Artifacts for the standalone find_cases.py script
+│   ├── bst_ibd.pkl          #   Serialised binary Crohn-vs-UC model
+│   ├── selected_taxa.json   #   Taxa retained by LASSO
+│   └── test_samples.json    #   Held-out samples for the diagnostic script
 ├── requirements.txt         # CPU dependencies
 ├── requirements-gpu.txt     # RAPIDS / cuML dependencies
 └── README.md
@@ -294,7 +306,7 @@ microbiome-disease-predictor/
 ## Key Findings
 
 - **Grouped cross-validation cut apparent performance roughly in half.** 3-class ROC-AUC fell from a reported 0.899 to 0.646, and binary from 0.913 to 0.637. That gap is a direct measure of how much the original result was batch memorisation.
-- **The binary Crohn vs UC model is the only result worth reporting**, at out-of-fold ROC-AUC 0.637 with a clean 2-fold geometry, though its accuracy sits only 1.6 points above the majority baseline.
+- **The binary task produced the most interpretable result because it achieved a valid two-fold cohort geometry**, at out-of-fold ROC-AUC 0.637, though its accuracy sits only 1.6 points above the majority baseline.
 - **The 3-class model does not clear its own baseline.** XGBoost lands below it and Random Forest 0.7 points above it.
 - **Fold assignment moves the result more than modelling does.** A single reshuffle moved UC recall from 0.06 to 0.60.
 - **Feature transforms and class weighting both produced negative or marginal results**, and are reported as such rather than dropped.
@@ -336,7 +348,7 @@ microbiome-disease-predictor/
 
 **4. Repeated cross-validation across several seeds.** Given how far one fold reshuffle moved UC recall, a single geometry is not enough to characterise performance. Reporting a distribution over seeds would be more honest than any point estimate.
 
-**5. Batch correction.** ComBat or an equivalent applied upstream of the model, to address the confound rather than merely refusing to be fooled by it.
+**5. Batch correction inside cross-validation.** Test batch-correction methods within each training fold, estimating all correction parameters from the training cohorts before applying them to the held-out cohorts. Fitting a correction globally, across train and test together, would leak information and reintroduce exactly the optimism this evaluation was rebuilt to remove.
 
 **6. Lead with the binary model.** Report Crohn vs UC as the headline result and present the 3-class model with its baseline attached, rather than averaging the UC failure into a macro F1.
 

@@ -7,12 +7,12 @@ import xgboost as xgb
 
 ROOT = Path(__file__).parent.parent
 
-booster = joblib.load(ROOT / "bst_ibd.pkl")
+booster = joblib.load(ROOT / "models" / "bst_ibd.pkl")
 
-with open(ROOT / "selected_taxa.json") as f:
+with open(ROOT / "models" / "selected_taxa.json") as f:
     feature_names = json.load(f)
 
-with open(ROOT / "test_samples.json") as f:
+with open(ROOT / "models" / "test_samples.json") as f:
     samples = json.load(f)
 
 arr = np.array([s["features"] for s in samples], dtype=np.float32)
